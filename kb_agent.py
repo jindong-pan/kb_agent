@@ -150,7 +150,7 @@ def ingest(ingest_all: bool = False):
 
 
 # ── Query ──────────────────────────────────────────────────────────────────────
-def query(question: str):
+def query(question: str, show_dist: bool = False):
     """Embed the question, retrieve top-k chunks, ask the LLM."""
     col = get_collection()
     count = col.count()
@@ -160,10 +160,11 @@ def query(question: str):
 
     q_embed = embed(question)
     results = col.query(query_embeddings=[q_embed], n_results=min(TOP_K, count),
-                        include=["documents", "metadatas"])
+                        include=["documents", "metadatas", "distances"])
 
     docs      = results["documents"][0]
     metadatas = results["metadatas"][0]
+    distances = results["distances"][0]
 
     context = "\n\n---\n\n".join(
         f"[Source: {m['source']}]\n{d}" for d, m in zip(docs, metadatas)
@@ -184,17 +185,23 @@ Answer:"""
     answer = chat(prompt)
     print(answer)
 
+    if show_dist:
+        print(f"\ndist={min(distances):.4f}")
+
     print("\n📄 Sources used:")
     seen = set()
-    for m in metadatas:
+    for m, dist in zip(metadatas, distances):
         src = m["source"]
         if src not in seen:
-            print(f"   • {src}")
+            line = f"   • {src}"
+            if show_dist:
+                line += f"  (dist={dist:.4f})"
+            print(line)
             seen.add(src)
 
 
 # ── Interactive chat loop ──────────────────────────────────────────────────────
-def interactive():
+def interactive(show_dist: bool = False):
     print("🧠 Personal Knowledge Base — interactive mode")
     print("   Type your question, or 'quit' to exit.\n")
     col = get_collection()
@@ -211,7 +218,7 @@ def interactive():
         if q.lower() in ("quit", "exit", "q"):
             print("Bye!")
             break
-        query(q)
+        query(q, show_dist=show_dist)
         print()
 
 
@@ -220,6 +227,7 @@ def main():
     cmd      = sys.argv[1] if len(sys.argv) > 1 else "chat"
     flags    = set(sys.argv[2:])
     ingest_all = "--all" in flags
+    show_dist  = "-dist" in flags
 
     if cmd == "ingest":
         label = "all (except fleeting/literature)" if ingest_all else "permanent/"
@@ -227,12 +235,12 @@ def main():
         ingest(ingest_all)
 
     elif cmd == "query" and len(sys.argv) > 2:
-        q = " ".join(a for a in sys.argv[2:] if not a.startswith("--"))
+        q = " ".join(a for a in sys.argv[2:] if not a.startswith("--") and a != "-dist")
         print(f"🔍 Query: {q}\n")
-        query(q)
+        query(q, show_dist=show_dist)
 
     elif cmd == "chat":
-        interactive()
+        interactive(show_dist=show_dist)
 
     elif cmd == "status":
         col = get_collection()
@@ -248,11 +256,13 @@ def main():
 
     else:
         print("Usage:")
-        print("  python kb_agent.py ingest           # ingest knowledge/permanent/ only")
-        print("  python kb_agent.py ingest --all     # ingest everything except fleeting/ & literature/")
-        print("  python kb_agent.py chat             # interactive Q&A")
-        print("  python kb_agent.py query <text>     # one-shot query")
-        print("  python kb_agent.py status           # show DB + file stats")
+        print("  python kb_agent.py ingest             # ingest knowledge/permanent/ only")
+        print("  python kb_agent.py ingest --all       # ingest everything except fleeting/ & literature/")
+        print("  python kb_agent.py chat               # interactive Q&A")
+        print("  python kb_agent.py chat -dist         # interactive Q&A with similarity distances")
+        print("  python kb_agent.py query <text>       # one-shot query")
+        print("  python kb_agent.py query <text> -dist # one-shot query with similarity distances")
+        print("  python kb_agent.py status             # show DB + file stats")
 
 
 if __name__ == "__main__":
