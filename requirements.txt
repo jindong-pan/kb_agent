@@ -1,2 +1,16 @@
 chromadb>=0.5.0
 requests>=2.31.0
+
+# PDF processing
+pymupdf>=1.27.0
+pdfminer.six>=20260107
+
+# Image processing & OCR
+Pillow>=12.0.0
+
+# OCR backends (install at least one)
+# pytesseract requires system Tesseract: sudo apt install tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-chi-tra
+pytesseract>=0.3.10
+# easyocr is an alternative that needs no system dependency (~1 GB model download on first run)
+# easyocr>=1.7.0
+# numpy>=1.24.0   # required by easyocr
